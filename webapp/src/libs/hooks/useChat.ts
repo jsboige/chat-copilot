@@ -4,21 +4,23 @@ import { useMsal } from '@azure/msal-react';
 import { Constants } from '../../Constants';
 import { useAppDispatch, useAppSelector } from '../../redux/app/hooks';
 import { RootState } from '../../redux/app/store';
-import { addAlert } from '../../redux/features/app/appSlice';
+import { addAlert, updateTokenUsage } from '../../redux/features/app/appSlice';
 import { ChatState } from '../../redux/features/conversations/ChatState';
 import { Conversations } from '../../redux/features/conversations/ConversationsState';
 import {
     addConversation,
     setConversations,
     setSelectedConversation,
+    updateBotResponseStatus,
 } from '../../redux/features/conversations/conversationsSlice';
 import { Plugin } from '../../redux/features/plugins/PluginsState';
 import { AuthHelper } from '../auth/AuthHelper';
 import { AlertType } from '../models/AlertType';
 import { Bot } from '../models/Bot';
 import { ChatMessageType } from '../models/ChatMessage';
-import { IChatSession } from '../models/ChatSession';
+import { IChatSession, ICreateChatSessionResponse } from '../models/ChatSession';
 import { IChatUser } from '../models/ChatUser';
+import { TokenUsage } from '../models/TokenUsage';
 import { IAskVariables } from '../semantic-kernel/model/Ask';
 import { BotService } from '../services/BotService';
 import { ChatService } from '../services/ChatService';
@@ -72,25 +74,25 @@ export const useChat = () => {
         const chatTitle = `Copilot @ ${new Date().toLocaleString()}`;
         const accessToken = await AuthHelper.getSKaaSAccessToken(instance, inProgress);
         try {
-            await chatService.createChatAsync(userId, chatTitle, accessToken).then(async (result: IChatSession) => {
-                const chatMessages = await chatService.getChatMessagesAsync(result.id, 0, 1, accessToken);
+            await chatService
+                .createChatAsync(userId, chatTitle, accessToken)
+                .then((result: ICreateChatSessionResponse) => {
+                    const newChat: ChatState = {
+                        id: result.chatSession.id,
+                        title: result.chatSession.title,
+                        systemDescription: result.chatSession.systemDescription,
+                        memoryBalance: result.chatSession.memoryBalance,
+                        messages: [result.initialBotMessage],
+                        users: [loggedInUser],
+                        botProfilePicture: getBotProfilePicture(Object.keys(conversations).length),
+                        input: '',
+                        botResponseStatus: undefined,
+                        userDataLoaded: false,
+                    };
 
-                const newChat: ChatState = {
-                    id: result.id,
-                    title: result.title,
-                    systemDescription: result.systemDescription,
-                    memoryBalance: result.memoryBalance,
-                    messages: chatMessages,
-                    users: [loggedInUser],
-                    botProfilePicture: getBotProfilePicture(Object.keys(conversations).length),
-                    input: '',
-                    botResponseStatus: undefined,
-                    userDataLoaded: false,
-                };
-
-                dispatch(addConversation(newChat));
-                return newChat.id;
-            });
+                    dispatch(addConversation(newChat));
+                    return newChat.id;
+                });
         } catch (e: any) {
             const errorMessage = `Unable to create new chat. Details: ${getErrorDetails(e)}`;
             dispatch(addAlert({ message: errorMessage, type: AlertType.Error }));
@@ -125,12 +127,21 @@ export const useChat = () => {
         }
 
         try {
-            await chatService.getBotResponseAsync(
-                ask,
-                await AuthHelper.getSKaaSAccessToken(instance, inProgress),
-                getEnabledPlugins(),
-            );
+            const askResult = await chatService
+                .getBotResponseAsync(
+                    ask,
+                    await AuthHelper.getSKaaSAccessToken(instance, inProgress),
+                    getEnabledPlugins(),
+                )
+                .catch((e: any) => {
+                    throw e;
+                });
+
+            // Update token usage of current session
+            const responseTokenUsage = askResult.variables.find((v) => v.key === 'tokenUsage')?.value;
+            if (responseTokenUsage) dispatch(updateTokenUsage(JSON.parse(responseTokenUsage) as TokenUsage));
         } catch (e: any) {
+            dispatch(updateBotResponseStatus({ chatId, status: undefined }));
             const errorMessage = `Unable to generate bot response. Details: ${getErrorDetails(e)}`;
             dispatch(addAlert({ message: errorMessage, type: AlertType.Error }));
         }
@@ -313,6 +324,18 @@ export const useChat = () => {
         }
     };
 
+    const getServiceOptions = async () => {
+        const accessToken = await AuthHelper.getSKaaSAccessToken(instance, inProgress);
+        try {
+            return await chatService.getServiceOptionsAsync(accessToken);
+        } catch (e: any) {
+            const errorMessage = `Error getting service options. Details: ${getErrorDetails(e)}`;
+            dispatch(addAlert({ message: errorMessage, type: AlertType.Error }));
+
+            return undefined;
+        }
+    };
+
     return {
         getChatUserById,
         createChat,
@@ -325,6 +348,7 @@ export const useChat = () => {
         importDocument,
         joinChat,
         editChat,
+        getServiceOptions,
     };
 };
 

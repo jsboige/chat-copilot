@@ -1,6 +1,8 @@
 // Copyright (c) Microsoft. All rights reserved.
 
 import { AlertType } from '../../../libs/models/AlertType';
+import { ServiceOptions } from '../../../libs/models/ServiceOptions';
+import { TokenUsage } from '../../../libs/models/TokenUsage';
 
 export interface ActiveUserInfo {
     id: string;
@@ -31,8 +33,10 @@ export interface Setting {
 export interface AppState {
     alerts: Alert[];
     activeUserInfo?: ActiveUserInfo;
+    tokenUsage: TokenUsage;
     features: Record<FeatureKeys, Feature>;
     settings: Setting[];
+    serviceOptions: ServiceOptions;
 }
 
 export enum FeatureKeys {
@@ -126,6 +130,8 @@ export const initialState: AppState = {
             type: AlertType.Info,
         },
     ],
+    tokenUsage: {},
     features: Features,
     settings: Settings,
+    serviceOptions: { memoriesStore: { types: [], selectedType: '' } },
 };

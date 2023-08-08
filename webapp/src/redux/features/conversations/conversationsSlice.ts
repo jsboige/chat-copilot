@@ -31,14 +31,17 @@ export const conversationsSlice: Slice<ConversationsState> = createSlice({
             const newInput = action.payload.newInput;
             state.conversations[id].input = newInput;
         },
-        editConversationSystemDescription: (state: ConversationsState, action: PayloadAction<ConversationSystemDescriptionChange>) => {
+        editConversationSystemDescription: (
+            state: ConversationsState,
+            action: PayloadAction<ConversationSystemDescriptionChange>,
+        ) => {
             const id = action.payload.id;
             const newSystemDescription = action.payload.newSystemDescription;
             state.conversations[id].systemDescription = newSystemDescription;
         },
         editConversationMemoryBalance: (
             state: ConversationsState,
-            action: PayloadAction<{id: string, memoryBalance: number}>,
+            action: PayloadAction<{ id: string; memoryBalance: number }>,
         ) => {
             const id = action.payload.id;
             const newMemoryBalance = action.payload.memoryBalance;
@@ -129,10 +132,11 @@ export const conversationsSlice: Slice<ConversationsState> = createSlice({
                 value: V;
                 chatId: string;
                 messageIdOrIndex: string | number;
+                updatedContent?: string;
                 frontLoad?: boolean;
             }>,
         ) => {
-            const { property, value, messageIdOrIndex, chatId, frontLoad } = action.payload;
+            const { property, value, messageIdOrIndex, chatId, updatedContent, frontLoad } = action.payload;
             const conversation = state.conversations[chatId];
             const conversationMessage =
                 typeof messageIdOrIndex === 'number'
@@ -141,7 +145,11 @@ export const conversationsSlice: Slice<ConversationsState> = createSlice({
 
             if (conversationMessage) {
                 conversationMessage[property] = value;
+                if (updatedContent) {
+                    conversationMessage.content = updatedContent;
+                }
             }
+
             if (frontLoad) {
                 frontLoadChat(state, chatId);
             }
