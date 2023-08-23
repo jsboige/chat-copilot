@@ -1,3 +1,5 @@
+import { StepwiseThoughtProcess } from './StepwiseThoughtProcess';
+
 // The final prompt sent to generate bot response.
 export interface BotResponsePrompt {
     // The system persona of the chat.
@@ -20,6 +22,9 @@ export interface BotResponsePrompt {
 
     // Preamble to the LLM's response.
     systemChatContinuation: string;
+
+    // Raw content of the rendered prompt.
+    rawContent: string;
 }
 
 export const PromptSectionsNameMap: Record<string, string> = {
@@ -27,7 +32,16 @@ export const PromptSectionsNameMap: Record<string, string> = {
     audience: 'Audience',
     userIntent: 'User Intent',
     chatMemories: 'Chat Memories',
-    externalInformation: 'External Information',
+    externalInformation: 'Planner Results',
     chatHistory: 'Chat History',
     systemChatContinuation: 'System Chat Continuation',
 };
+
+// Information about semantic dependencies of the prompt.
+export interface DependencyDetails {
+    // Context of the dependency. This can be either the prompt template or planner details.
+    context: string | StepwiseThoughtProcess;
+
+    // Result of the dependency. This is the output that's injected into the prompt.
+    result: string;
+}

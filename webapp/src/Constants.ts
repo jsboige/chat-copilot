@@ -4,13 +4,10 @@ export const Constants = {
     app: {
         name: 'Copilot',
         updateCheckIntervalSeconds: 60 * 5,
+        CONNECTION_ALERT_ID: 'connection-alert',
     },
     msal: {
         method: 'redirect', // 'redirect' | 'popup'
-        auth: {
-            clientId: process.env.REACT_APP_AAD_CLIENT_ID as string,
-            authority: process.env.REACT_APP_AAD_AUTHORITY as string,
-        },
         cache: {
             cacheLocation: 'localStorage',
             storeAuthStateInCookie: false,

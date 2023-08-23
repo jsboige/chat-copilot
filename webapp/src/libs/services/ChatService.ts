@@ -13,13 +13,8 @@ import { ICustomPlugin } from '../semantic-kernel/model/CustomPlugin';
 import { BaseService } from './BaseService';
 
 export class ChatService extends BaseService {
-    public createChatAsync = async (
-        userId: string,
-        title: string,
-        accessToken: string,
-    ): Promise<ICreateChatSessionResponse> => {
+    public createChatAsync = async (title: string, accessToken: string): Promise<ICreateChatSessionResponse> => {
         const body = {
-            userId,
             title,
         };
 
@@ -93,9 +88,21 @@ export class ChatService extends BaseService {
 
         const result = await this.getResponseAsync<IChatSession>(
             {
-                commandPath: 'chatSession/edit',
+                commandPath: `chatSession/edit`,
                 method: 'POST',
                 body,
+            },
+            accessToken,
+        );
+
+        return result;
+    };
+
+    public deleteChatAsync = async (chatId: string, accessToken: string): Promise<object> => {
+        const result = await this.getResponseAsync<object>(
+            {
+                commandPath: `chatSession/${chatId}`,
+                method: 'DELETE',
             },
             accessToken,
         );
@@ -179,7 +186,7 @@ export class ChatService extends BaseService {
 
         await this.getResponseAsync<any>(
             {
-                commandPath: 'chatParticipant/join',
+                commandPath: `chatParticipant/join`,
                 method: 'POST',
                 body,
             },

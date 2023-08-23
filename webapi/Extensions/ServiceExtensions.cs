@@ -10,8 +10,10 @@ using CopilotChat.WebApi.Models.Storage;
 using CopilotChat.WebApi.Options;
 using CopilotChat.WebApi.Services;
 using CopilotChat.WebApi.Storage;
+using CopilotChat.WebApi.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -32,117 +34,63 @@ public static class CopilotChatServiceExtensions
     public static IServiceCollection AddOptions(this IServiceCollection services, ConfigurationManager configuration)
     {
         // General configuration
-        services.AddOptions<ServiceOptions>()
-            .Bind(configuration.GetSection(ServiceOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<ServiceOptions>(ServiceOptions.PropertyName);
 
         // Default AI service configurations for Semantic Kernel
-        services.AddOptions<AIServiceOptions>()
-            .Bind(configuration.GetSection(AIServiceOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
-
-        // Authorization configuration
-        services.AddOptions<AuthorizationOptions>()
-            .Bind(configuration.GetSection(AuthorizationOptions.PropertyName))
-            .ValidateOnStart()
-            .ValidateDataAnnotations()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<AIServiceOptions>(AIServiceOptions.PropertyName);
 
         // Memory store configuration
-        services.AddOptions<MemoriesStoreOptions>()
-            .Bind(configuration.GetSection(MemoriesStoreOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<MemoryStoreOptions>(MemoryStoreOptions.PropertyName);
+
+        // Authentication configuration
+        AddOptions<ChatAuthenticationOptions>(ChatAuthenticationOptions.PropertyName);
 
         // Chat log storage configuration
-        services.AddOptions<ChatStoreOptions>()
-            .Bind(configuration.GetSection(ChatStoreOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<ChatStoreOptions>(ChatStoreOptions.PropertyName);
 
         // Azure speech token configuration
-        services.AddOptions<AzureSpeechOptions>()
-            .Bind(configuration.GetSection(AzureSpeechOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<AzureSpeechOptions>(AzureSpeechOptions.PropertyName);
 
         // Bot schema configuration
-        services.AddOptions<BotSchemaOptions>()
-            .Bind(configuration.GetSection(BotSchemaOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<BotSchemaOptions>(BotSchemaOptions.PropertyName);
 
         // Document memory options
-        services.AddOptions<DocumentMemoryOptions>()
-            .Bind(configuration.GetSection(DocumentMemoryOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<DocumentMemoryOptions>(DocumentMemoryOptions.PropertyName);
 
         // Chat prompt options
-        services.AddOptions<PromptsOptions>()
-            .Bind(configuration.GetSection(PromptsOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<PromptsOptions>(PromptsOptions.PropertyName);
 
         // Planner options
-        services.AddOptions<PlannerOptions>()
-            .Bind(configuration.GetSection(PlannerOptions.PropertyName))
-            .ValidateDataAnnotations()
-            .ValidateOnStart()
-            .PostConfigure(TrimStringProperties);
+        AddOptions<PlannerOptions>(PlannerOptions.PropertyName);
 
         // OCR support options
-        services.AddOptions<OcrSupportOptions>()
-            .Bind(configuration.GetSection(OcrSupportOptions.PropertyName))
+        AddOptions<OcrSupportOptions>(OcrSupportOptions.PropertyName);
+
+        // Content safety options
+        AddOptions<ContentSafetyOptions>(ContentSafetyOptions.PropertyName);
+
+        return services;
+
+        void AddOptions<TOptions>(string propertyName)
+            where TOptions : class
+        {
+            services.AddOptions<TOptions>(configuration.GetSection(propertyName));
+        }
+    }
+
+    internal static void AddOptions<TOptions>(this IServiceCollection services, IConfigurationSection section)
+        where TOptions : class
+    {
+        services.AddOptions<TOptions>()
+            .Bind(section)
             .ValidateDataAnnotations()
             .ValidateOnStart()
             .PostConfigure(TrimStringProperties);
-
-        return services;
     }
 
-    /// <summary>
-    /// Add authorization services
-    /// </summary>
-    internal static IServiceCollection AddAuthorization(this IServiceCollection services, IConfiguration configuration)
+    internal static IServiceCollection AddUtilities(this IServiceCollection services)
     {
-        AuthorizationOptions config = services.BuildServiceProvider().GetRequiredService<IOptions<AuthorizationOptions>>().Value;
-        switch (config.Type)
-        {
-            case AuthorizationOptions.AuthorizationType.AzureAd:
-                services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                    .AddMicrosoftIdentityWebApi(configuration.GetSection($"{AuthorizationOptions.PropertyName}:AzureAd"));
-                break;
-
-            case AuthorizationOptions.AuthorizationType.ApiKey:
-                services.AddAuthentication(ApiKeyAuthenticationHandler.AuthenticationScheme)
-                    .AddScheme<ApiKeyAuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
-                        ApiKeyAuthenticationHandler.AuthenticationScheme,
-                        options => options.ApiKey = config.ApiKey);
-                break;
-
-            case AuthorizationOptions.AuthorizationType.None:
-                services.AddAuthentication(PassThroughAuthenticationHandler.AuthenticationScheme)
-                    .AddScheme<AuthenticationSchemeOptions, PassThroughAuthenticationHandler>(
-                        authenticationScheme: PassThroughAuthenticationHandler.AuthenticationScheme,
-                        configureOptions: null);
-                break;
-
-            default:
-                throw new InvalidOperationException($"Invalid authorization type '{config.Type}'.");
-        }
-
-        return services;
+        return services.AddScoped<AskConverter>();
     }
 
     /// <summary>
@@ -160,6 +108,7 @@ public static class CopilotChatServiceExtensions
                     policy =>
                     {
                         policy.WithOrigins(allowedOrigins)
+                            .WithMethods("GET", "POST", "DELETE")
                             .AllowAnyHeader();
                     });
             });
@@ -275,6 +224,53 @@ public static class CopilotChatServiceExtensions
         services.AddSingleton<ChatMessageRepository>(new ChatMessageRepository(chatMessageStorageContext));
         services.AddSingleton<ChatMemorySourceRepository>(new ChatMemorySourceRepository(chatMemorySourceStorageContext));
         services.AddSingleton<ChatParticipantRepository>(new ChatParticipantRepository(chatParticipantStorageContext));
+
+        return services;
+    }
+
+    /// <summary>
+    /// Add authorization services
+    /// </summary>
+    public static IServiceCollection AddCopilotChatAuthorization(this IServiceCollection services)
+    {
+        return services.AddScoped<IAuthorizationHandler, ChatParticipantAuthorizationHandler>()
+            .AddAuthorizationCore(options =>
+            {
+                options.DefaultPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
+                options.AddPolicy(AuthPolicyName.RequireChatParticipant, builder =>
+                {
+                    builder.RequireAuthenticatedUser()
+                        .AddRequirements(new ChatParticipantRequirement());
+                });
+            });
+    }
+
+    /// <summary>
+    /// Add authentication services
+    /// </summary>
+    public static IServiceCollection AddCopilotChatAuthentication(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddScoped<IAuthInfo, AuthInfo>();
+        var config = services.BuildServiceProvider().GetRequiredService<IOptions<ChatAuthenticationOptions>>().Value;
+        switch (config.Type)
+        {
+            case ChatAuthenticationOptions.AuthenticationType.AzureAd:
+                services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                    .AddMicrosoftIdentityWebApi(configuration.GetSection($"{ChatAuthenticationOptions.PropertyName}:AzureAd"));
+                break;
+
+            case ChatAuthenticationOptions.AuthenticationType.None:
+                services.AddAuthentication(PassThroughAuthenticationHandler.AuthenticationScheme)
+                    .AddScheme<AuthenticationSchemeOptions, PassThroughAuthenticationHandler>(
+                        authenticationScheme: PassThroughAuthenticationHandler.AuthenticationScheme,
+                        configureOptions: null);
+                break;
+
+            default:
+                throw new InvalidOperationException($"Invalid authentication type '{config.Type}'.");
+        }
 
         return services;
     }
