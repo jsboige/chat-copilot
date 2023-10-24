@@ -11,7 +11,7 @@ This document details how to deploy Chat Copilot's required resources to your Az
 
 - `F1` and `D1` SKUs for the App Service Plans are not currently supported for this deployment in order to support private networking.
 
-- Chat Copilot deployments use Azure Active Directory for authentication. All endpoints (except `/healthz`) require authentication to access.
+- Chat Copilot deployments use Azure Active Directory for authentication. All endpoints (except `/healthz` and `/authInfo`) require authentication to access.
 
 # Configure your environment
 
@@ -21,7 +21,6 @@ Before you get started, make sure you have the following requirements in place:
 - Azure CLI (i.e., az) (if you already installed Azure CLI, make sure to update your installation to the latest version)
   - Windows, go to https://aka.ms/installazurecliwindows
   - Linux, run "`curl -L https://aka.ms/InstallAzureCli | bash`"
-- Azure Static Web App CLI (i.e., swa) can be installed by running "`npm install -g @azure/static-web-apps-cli`"
 - (Linux only) `zip` can be installed by running "`sudo apt install zip`"
 
 ## App registrations (identity)
@@ -45,49 +44,54 @@ You will need two Azure Active Directory (AAD) application registrations -- one 
 - Make a note of the `Application (client) ID` from the Azure Portal for use in the `Deploy Azure infrastructure` step below.
 
 ### Linking the frontend to the backend
-1. Expose an API within the backend app registration
-   1. Select *Expose an API* from the menu
 
-   2. Add an *Application ID URI*
+1. Expose an API within the backend app registration
+
+   1. Select _Expose an API_ from the menu
+
+   2. Add an _Application ID URI_
+
       1. This will generate an `api://` URI
 
-      2. Click *Save* to store the generated URI
+      2. Click _Save_ to store the generated URI
 
    3. Add a scope for `access_as_user`
-      1. Click *Add scope*
 
-      2. Set *Scope name* to `access_as_user`
+      1. Click _Add scope_
 
-      3. Set *Who can consent* to *Admins and users*
+      2. Set _Scope name_ to `access_as_user`
 
-      4. Set *Admin consent display name* and *User consent display name* to `Access Chat Copilot as a user`
+      3. Set _Who can consent_ to _Admins and users_
 
-      5. Set *Admin consent description* and *User consent description* to `Allows the accesses to the Chat Copilot web API as a user`
+      4. Set _Admin consent display name_ and _User consent display name_ to `Access Chat Copilot as a user`
+
+      5. Set _Admin consent description_ and _User consent description_ to `Allows the accesses to the Chat Copilot web API as a user`
 
    4. Add the web app frontend as an authorized client application
-      1. Click *Add a client application*
 
-      2. For *Client ID*, enter the frontend's application (client) ID
+      1. Click _Add a client application_
 
-      3. Check the checkbox under *Authorized scopes*
+      2. For _Client ID_, enter the frontend's application (client) ID
 
-      4. Click *Add application*
+      3. Check the checkbox under _Authorized scopes_
 
-4. Add permissions to web app frontend to access web api as user
+      4. Click _Add application_
+
+2. Add permissions to web app frontend to access web api as user
+
    1. Open app registration for web app frontend
 
-   2. Go to *API Permissions*
+   2. Go to _API Permissions_
 
-   3. Click *Add a permission*
+   3. Click _Add a permission_
 
-   4. Select the tab *My APIs*
+   4. Select the tab _APIs my organization uses_
 
    5. Choose the app registration representing the web api backend
 
    6. Select permissions `access_as_user`
 
-   7. Click *Add permissions*
-
+   7. Click _Add permissions_
 
 # Deploy Azure Infrastructure
 
@@ -96,7 +100,7 @@ The examples below assume you are using an existing Azure OpenAI resource. See t
 ## PowerShell
 
 ```powershell
-./deploy-azure.ps1 -Subscription {YOUR_SUBSCRIPTION_ID} -DeploymentName {YOUR_DEPLOYMENT_NAME} -AIService {AzureOpenAI or OpenAI} -AIApiKey {YOUR_AI_KEY} -AIEndpoint {YOUR_AZURE_OPENAI_ENDPOINT} -BackendClientId {YOUR_BACKEND_APPLICATION_ID} -TenantId {YOUR_TENANT_ID}
+./deploy-azure.ps1 -Subscription {YOUR_SUBSCRIPTION_ID} -DeploymentName {YOUR_DEPLOYMENT_NAME} -AIService {AzureOpenAI or OpenAI} -AIApiKey {YOUR_AI_KEY} -AIEndpoint {YOUR_AZURE_OPENAI_ENDPOINT} -BackendClientId {YOUR_BACKEND_APPLICATION_ID} -FrontendClientId {YOUR_FRONTEND_APPLICATION_ID} -TenantId {YOUR_TENANT_ID}
 ```
 
 - To use an existing Azure OpenAI resource, set `-AIService` to `AzureOpenAI` and include `-AIApiKey` and `-AIEndpoint`.
@@ -107,7 +111,7 @@ The examples below assume you are using an existing Azure OpenAI resource. See t
 
 ```bash
 chmod +x ./deploy-azure.sh
-./deploy-azure.sh --subscription {YOUR_SUBSCRIPTION_ID} --deployment-name {YOUR_DEPLOYMENT_NAME} --ai-service {AzureOpenAI or OpenAI} --ai-service-key {YOUR_AI_KEY} --ai-endpoint {YOUR_AZURE_OPENAI_ENDPOINT} --client-id {YOUR_BACKEND_APPLICATION_ID} --tenant-id {YOUR_TENANT_ID}
+./deploy-azure.sh --subscription {YOUR_SUBSCRIPTION_ID} --deployment-name {YOUR_DEPLOYMENT_NAME} --ai-service {AzureOpenAI or OpenAI} --ai-service-key {YOUR_AI_KEY} --ai-endpoint {YOUR_AZURE_OPENAI_ENDPOINT} --client-id {YOUR_BACKEND_APPLICATION_ID} --frontend-client-id {YOUR_FRONTEND_APPLICATION_ID} --tenant-id {YOUR_TENANT_ID}
 ```
 
 - To use an existing Azure OpenAI resource, set `--ai-service` to `AzureOpenAI` and include `--ai-service-key` and `--ai-endpoint`.
@@ -120,22 +124,20 @@ You can also deploy the infrastructure directly from the Azure Portal by clickin
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://aka.ms/sk-deploy-existing-azureopenai-portal)
 
-> This will automatically deploy the most recent release of CopilotChat backend binaries ([link](https://github.com/microsoft/copilot-chat/releases)).
+> This will automatically deploy the most recent release of Chat Copilot binaries ([link](https://github.com/microsoft/chat-copilot/releases)).
 
 > To find the deployment name when using `Deploy to Azure`, look for a deployment in your resource group that starts with `Microsoft.Template`.
 
-# Deploy Backend (WebAPI)
+# Deploy Application
 
-> **_NOTE:_** This step can be skipped if the previous Azure Resources creation step succeeded without errors. The `deployWebApiPackage = true` setting in main.bicep ensures that the latest copilot chat api is deployed.
-
-To deploy the backend, build the deployment package first and deploy it to the Azure resources created above.
+To deploy the application, first package it, then deploy it to the Azure resources created above.
 
 ## PowerShell
 
 ```powershell
 ./package-webapi.ps1
 
-./deploy-webapi.ps1 -Subscription {YOUR_SUBSCRIPTION_ID} -ResourceGroupName rg-{YOUR_DEPLOYMENT_NAME} -DeploymentName {YOUR_DEPLOYMENT_NAME}
+./deploy-webapi.ps1 -Subscription {YOUR_SUBSCRIPTION_ID} -ResourceGroupName {YOUR_RESOURCE_GROUP_NAME} -DeploymentName {YOUR_DEPLOYMENT_NAME}
 ```
 
 ## Bash
@@ -145,30 +147,61 @@ chmod +x ./package-webapi.sh
 ./package-webapi.sh
 
 chmod +x ./deploy-webapi.sh
-./deploy-webapi.sh --subscription {YOUR_SUBSCRIPTION_ID} --resource-group rg-{YOUR_DEPLOYMENT_NAME} --deployment-name {YOUR_DEPLOYMENT_NAME}
+./deploy-webapi.sh --subscription {YOUR_SUBSCRIPTION_ID} --resource-group {YOUR_RESOURCE_GROUP_NAME} --deployment-name {YOUR_DEPLOYMENT_NAME}
 ```
 
-# Deploy Frontend (WebApp)
+# Deploy Hosted Plugins
 
-## Prerequisites
+> **_NOTE:_** This step can be skipped if the required resources for the web searcher plugin are not deployed. The required resources include a Bing resource and an Azure Function. The required resources are NOT deployed by default. To deploy the required resources, use the `-DeployWebSearcherPlugin` or `--deploy-web-searcher-plugin` flag when running the **deploy-azure.ps1/deploy-azure.sh** script.
 
-### Install Azure's Static Web Apps CLI
+> **_NOTE:_** This step can be skipped if the previous Azure Resources creation step, including the resources required by the Web Search plugin, succeeded without errors. The `deployPackages = true` setting in main.bicep ensures that the WebSearcher is deployed.
 
-```bash
-npm install -g @azure/static-web-apps-cli
-```
+> **_NOTE:_** More hosted plugins will be available.
+
+To deploy the plugins, build the packages first and deploy them to the Azure resources created above.
 
 ## PowerShell
 
 ```powershell
+./package-plugins.ps1
 
-./deploy-webapp.ps1 -Subscription {YOUR_SUBSCRIPTION_ID} -ResourceGroupName rg-{YOUR_DEPLOYMENT_NAME} -DeploymentName {YOUR_DEPLOYMENT_NAME} -FrontendClientId {YOUR_FRONTEND_APPLICATION_ID}
+./deploy-plugins.ps1 -Subscription {YOUR_SUBSCRIPTION_ID} -ResourceGroupName rg-{YOUR_DEPLOYMENT_NAME} -DeploymentName {YOUR_DEPLOYMENT_NAME}
 ```
 
 ## Bash
 
 ```bash
-./deploy-webapp.sh --subscription {YOUR_SUBSCRIPTION_ID} --resource-group rg-{YOUR_DEPLOYMENT_NAME} --deployment-name {YOUR_DEPLOYMENT_NAME} --client-id {YOUR_FRONTEND_APPLICATION_ID}
+chmod +x ./package-plugins.sh
+./package-webapi.sh
+
+chmod +x ./deploy-plugins.sh
+./deploy-webapi.sh --subscription {YOUR_SUBSCRIPTION_ID} --resource-group rg-{YOUR_DEPLOYMENT_NAME} --deployment-name {YOUR_DEPLOYMENT_NAME}
+```
+
+# (Optional) Deploy Memory Pipeline
+
+> **_NOTE:_** This step can be skipped if the WebApi is NOT configured to run asynchronously for document processing. By default, the WebApi is configured to run asynchronously for document processing in deployment.
+
+> **_NOTE:_** This step can be skipped if the previous Azure Resources creation step succeeded without errors. The deployPackages = true setting in main.bicep ensures that the latest Chat Copilot memory pipeline is deployed.
+
+To deploy the memorypipeline, build the deployment package first and deploy it to the Azure resources created above.
+
+## PowerShell
+
+```powershell
+.\package-memorypipeline.ps1
+
+.\deploy-memorypipeline.ps1 -Subscription {YOUR_SUBSCRIPTION_ID} -ResourceGroupName {YOUR_RESOURCE_GROUP_NAME} -DeploymentName {YOUR_DEPLOYMENT_NAME}
+```
+
+## Bash
+
+```bash
+chmod +x ./package-memorypipeline.sh
+./package-memorypipeline.sh
+
+chmod +x ./deploy-memorypipeline.sh
+./deploy-memorypipeline.sh --subscription {YOUR_SUBSCRIPTION_ID} --resource-group {YOUR_RESOURCE_GROUP_NAME} --deployment-name {YOUR_DEPLOYMENT_NAME}
 ```
 
 Your Chat Copilot application is now deployed!
@@ -185,9 +218,9 @@ This will get you to the CORS page where you can add your allowed hosts.
 ### PowerShell
 
 ```powershell
-$webApiName = $(az deployment group show --name {DEPLOYMENT_NAME} --resource-group rg-{DEPLOYMENT_NAME} --output json | ConvertFrom-Json).properties.outputs.webapiName.value
+$webApiName = $(az deployment group show --name {DEPLOYMENT_NAME} --resource-group {YOUR_RESOURCE_GROUP_NAME} --output json | ConvertFrom-Json).properties.outputs.webapiName.value
 
-($(az webapp config appsettings list --name $webapiName --resource-group rg-{YOUR_DEPLOYMENT_NAME} | ConvertFrom-JSON) | Where-Object -Property name -EQ -Value Authorization:ApiKey).value
+az webapp cors add --name $webapiName --resource-group $ResourceGroupName --subscription $Subscription --allowed-origins YOUR_FRONTEND_URL
 ```
 
 ### Bash
@@ -195,5 +228,5 @@ $webApiName = $(az deployment group show --name {DEPLOYMENT_NAME} --resource-gro
 ```bash
 eval WEB_API_NAME=$(az deployment group show --name $DEPLOYMENT_NAME --resource-group $RESOURCE_GROUP --output json) | jq -r '.properties.outputs.webapiName.value'
 
-$(az webapp config appsettings list --name $WEB_API_NAME --resource-group rg-{YOUR_DEPLOYMENT_NAME} | jq '.[] | select(.name=="Authorization:ApiKey").value')
+az webapp cors add --name $WEB_API_NAME --resource-group $RESOURCE_GROUP --subscription $SUBSCRIPTION --allowed-origins YOUR_FRONTEND_URL
 ```

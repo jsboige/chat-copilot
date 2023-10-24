@@ -6,14 +6,8 @@ on:
       REACT_APP_BACKEND_URI:
         required: true
         type: string
-      REACT_APP_AAD_AUTHORITY:
+      AZURE_FUNCTION_MASTER_KEY:
         required: true
-        type: string
-      REACT_APP_AAD_CLIENT_ID:
-        required: true
-        type: string
-      REACT_APP_AAD_API_SCOPE:
-        required: false
         type: string
 env:
   REGISTRY: ghcr.io
@@ -38,19 +32,26 @@ jobs:
             image: ${{ github.repository }}-webapp-nginx
             build-args: |
               REACT_APP_BACKEND_URI=${{ inputs.REACT_APP_BACKEND_URI }}
-              REACT_APP_AAD_AUTHORITY=${{ inputs.REACT_APP_AAD_AUTHORITY }}
-              REACT_APP_AAD_CLIENT_ID=${{ inputs.REACT_APP_AAD_CLIENT_ID }}
-              REACT_APP_AAD_API_SCOPE=${{ inputs.REACT_APP_AAD_API_SCOPE }}
+
+          - file: ./docker/plugins/web-searcher/Dockerfile
+            image: ${{ github.repository }}-web-searcher
+            build-args: |
+              AZURE_FUNCTION_MASTER_KEY=${{ inputs.AZURE_FUNCTION_MASTER_KEY }}
+
+          - file: ./docker/memorypipeline/Dockerfile
+            image: ${{ github.repository }}-memorypipeline
+            build-args: |
+
     permissions:
       contents: read
       packages: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Login container registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -58,7 +59,7 @@ jobs:
 
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ matrix.image }}
           tags: |
@@ -69,7 +70,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: ${{ matrix.file }}

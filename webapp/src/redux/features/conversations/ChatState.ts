@@ -10,11 +10,13 @@ export interface ChatState {
     memoryBalance: number;
     users: IChatUser[];
     messages: IChatMessage[];
+    enabledHostedPlugins: string[];
     botProfilePicture: string;
     lastUpdatedTimestamp?: number;
     input: string;
     botResponseStatus: string | undefined;
     userDataLoaded: boolean;
     importingDocuments?: string[];
-    disabled: boolean;
+    disabled: boolean; // For labeling a chat has been deleted
+    hidden: boolean; // For hiding a chat from the list
 }
